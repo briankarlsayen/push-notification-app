@@ -5,8 +5,8 @@ self.addEventListener('push', function(event) {
 
   const options = {
     body: body,
-    icon: 'image/yin-yang.png',
-    badge: 'image/yin-yang.png'
+    icon: 'yin-yang.png',
+    badge: 'yin-yang.png'
   };
 
   event.waitUntil(self.registration.showNotification(title, options));
