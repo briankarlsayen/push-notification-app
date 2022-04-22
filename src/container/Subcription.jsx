@@ -1,16 +1,13 @@
-import axios from 'axios'
 import React, {useState, useEffect} from 'react'
-// import service from '../../sw';
-
-function Subcription() {
+import axios from 'axios';
+export default function Subcription() {
   const applicationServerPublicKey = 'BMsFhyOx-CYwyDhQcQTw-vuWr3uco4SzQFc_0SbxC-8Gvs61cGKeKXbKOigSC8-vRnPdu0pMVtb08Wfs9EftrmM';
   const baseURL = 'https://push-notif-v1.herokuapp.com'
-  let isSubscribed = false;
-  // let swRegistration = null;
 
-  const [textButton, setTextButton] = useState('Subscribe')
-  const [swRegistration, setSwRegistration] = useState(null)
-  const [subsText, setSubsText] = useState({})
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(false)
+  const [userConsent, setUserConsent] = useState(Notification.permission)
+  const [userSubscription, setUserSubscription] = useState(null);
 
   const urlB64ToUint8Array = (base64String) => {
     const padding = '='.repeat((4 - base64String.length % 4) % 4);
@@ -26,167 +23,208 @@ function Subcription() {
     }
     return outputArray;
   }
-  console.log('navigator', window)
-  useEffect(()=> {
-    if ('serviceWorker' in navigator && 'PushManager' in window) {
-      console.log('Service Worker and Push is supported');
-      // console.log('tae', navigator.serviceWorker.register(service))
-      navigator.serviceWorker.register('./sw')
-      .then(function(swReg) {
-        // console.log('tae')
-        // console.log('Service Worker is registered');
-        console.log("swReg", swReg)
-        setSwRegistration(swReg)
-        initializeUI();
+
+  const registerSW = () => {
+    return navigator.serviceWorker.register('sw')
+  }
+
+  const isPushNotifSupported = () => {
+    // console.log('Service Worker and Push is supported'); 
+    return "serviceWorker" in navigator && "PushManager" in window;
+  }
+
+  const pushNotificationSupported = isPushNotifSupported();
+
+  const getUserSubscription = async() => {
+    return navigator.serviceWorker.ready
+    .then(function(serviceWorker) {
+      return serviceWorker.pushManager.getSubscription();
+    })
+    .then(function(pushSubscription) {
+      return pushSubscription;
+    });
+  }
+
+  const userSubscribe = async() => {
+    return navigator.serviceWorker.ready
+    .then(function(serviceWorker) {
+      return serviceWorker.pushManager.getSubscription()
+       .then(function(subscription) {
+        return subscription.unsubscribe().then(function(successful) {
+          // setLoading(true);
+          localStorage.clear()
+          setUserSubscription(null)
+          // setLoading(false);
+          setError(false)
+          return successful
+          // You've successfully unsubscribed
+        }).catch(function(e) {
+          setError({
+            name: "Subscription error",
+            message: "Unable to unsubscribe user",
+            code: 0
+          });
+          return false
+          // Unsubscribing failed
+        })
       })
-      .catch(function(error) {
-        // console.log('taeee')
-        console.error('Service Worker Error', error);
-      });
+    })
+  }
+
+  async function askUserPermission() {
+    return await Notification.requestPermission();
+  }
+
+  async function createNotificationSubscription() {
+    //wait for service worker installation to be ready
+    const serviceWorker = await navigator.serviceWorker.ready;
+    // subscribe and return the subscription
+    const applicationServerKey = urlB64ToUint8Array(applicationServerPublicKey);
+    return await serviceWorker.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: applicationServerKey
+    });
+  }
+
+
+  useEffect(()=> {
+    if(isPushNotifSupported) {
+      registerSW().then(()=>{
+        setLoading(false)
+      })
     } else {
-      console.warn('Push messaging is not supported');
+      console.log('Push messaging is not supported');
+      setError({
+        name: "Push messaging is not supported",
+        message: "Push messaging is not supported",
+        code: 0
+      });
       // pushButton.textContent = 'Push Not Supported';
     }
   }, [])
-  
-  console.log("swRegistration", swRegistration)
 
-  const initializeUI = () => {
-    // return console.log('tae')
-    // pushButton.disabled = true;
-    if (isSubscribed) {
-      unsubscribeUser();
-    } else {
-      subscribeUser();
-    }
-  
-    // Set the initial subscription value
-    swRegistration.pushManager.getSubscription()
-    .then(function(subscription) {
-      isSubscribed = !(subscription === null);
-  
-      updateSubscriptionOnServer(subscription);
-  
-      if (isSubscribed) {
-        console.log('User IS subscribed.');
-      } else {
-        console.log('User is NOT subscribed.');
-      }
-      updateBtn();
-    });
-  }
+  useEffect(() => {
+    setLoading(true);
+    setError(false);
+    if(userConsent) onClickAskUserPermission()
+    const getExixtingSubscription = async () => {
+      const existingSubscription = await getUserSubscription();
+      setUserSubscription(existingSubscription);
+      setLoading(false);
+    };
+    getExixtingSubscription();
+  }, []);
 
-  const updateBtn = () => {
-    if (Notification.permission === 'denied') {
-     setTextButton('Push Messaging Blocked.')
-      // pushButton.disabled = true;
-      updateSubscriptionOnServer(null);
-      return;
-    }
-  
-    if (isSubscribed) {
-      setTextButton('Disable Push Messaging')
-    } else {
-      setTextButton('Enable Push Messaging')
-    }
-  
-    // pushButton.disabled = false;
-  }
-
-  const subscribeUser = () => {
-    const applicationServerKey = urlB64ToUint8Array(applicationServerPublicKey);
-    swRegistration.pushManager.subscribe({
-      userVisibleOnly: true,
-      applicationServerKey: applicationServerKey
-    })
-    .then(function(subscription) {
-      console.log('User is subscribed.');
-      //subscribe user
-      sendSubscription(subscription)
-      updateSubscriptionOnServer(subscription);
-      // console.log('subscription', subscription)
-  
-      isSubscribed = true;
-  
-      updateBtn();
-    })
-    .catch(function(err) {
-      console.log('Failed to subscribe the user: ', err);
-      updateBtn();
-    });
-  }
-
-  const updateSubscriptionOnServer = (subscription) => {
-    // const subscriptionJson = document.querySelector('.js-subscription-json');
-    // const subscriptionDetails =
-    //   document.querySelector('.js-subscription-details');
-  
-    if (subscription) {
-      const newSubs = JSON.stringify(subscription);
-      console.log("subscription", newSubs)
-      setSubsText(subscription)
-      // subscriptionDetails.classList.remove('is-invisible');
-    } else {
-      // subscriptionDetails.classList.add('is-invisible');
-    }
-  }
-
-  const unsubscribeUser = async() => {
-    swRegistration.pushManager.getSubscription()
-    .then(async(subscription) => {
-      if (subscription) {
-        const userId = JSON.parse(localStorage.getItem('push-info'))
-        const server = `${baseURL}/archivesubscription/${userId._id}`
-        const rawResponse = await fetch(server, {
-          method: 'PUT',
-          headers: {
-            'Accept': 'application/json',
-            'Content-Type': 'application/json'
-          }
+  const onClickAskUserPermission = () => {
+    setLoading(true);
+    setError(false);
+    askUserPermission().then(consent => {
+      setUserConsent(consent);
+      if (consent !== "granted") {
+        setError({
+          name: "Consent denied",
+          message: "You denied the consent to receive notifications",
+          code: 0
         });
-        const content = await rawResponse.json();
-        localStorage.clear()
-        return subscription.unsubscribe();
       }
-    })
-    .catch(function(error) {
-      console.log('Error unsubscribing', error);
-    })
-    .then(function() {
-      updateSubscriptionOnServer(null);
-  
-      console.log('User is unsubscribed.');
-      isSubscribed = false;
-  
-      updateBtn();
+      setLoading(false);
     });
-  }
+  };
 
-  const sendSubscription = async(subscription) => {
+
+  const onClickSusbribeToPushNotification = () => {
+    setLoading(true);
+    setError(false);
+    createNotificationSubscription()
+      .then(function(subscrition) {
+        setUserSubscription(subscrition);
+        setLoading(false);
+      })
+      .catch(err => {
+        console.log("Unable to create notification subscription")
+        // console.error("Couldn't create the notification subscription", err, "name:", err.name, "message:", err.message, "code:", err.code);
+        setError(err);
+        setLoading(false);
+      });
+  };
+
+  const sendSubscribeUserToServer = async(props) => {
+    setLoading(true)
+    const subKey = props !== null ? props : userSubscription
     const server = `${baseURL}/createsubscription`
-    const rawResponse = await fetch(server, {
-      method: 'POST',
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({subscriptionKey:subscription})
-    });
-    const content = await rawResponse.json();
-  
-    const data = {
-      _id: content.result._id,
-      subscriptionKey: content.result.subscriptionKey
+    const createSubs = await axios.post(server, {subscriptionKey: subKey})
+    console.log(createSubs)
+    if(createSubs.statusText === 'OK') {
+      setLoading(false);
+      const data = {
+        _id: createSubs.data.result._id,
+        subscriptionKey: createSubs.data.result.subscriptionKey
+      }
+      localStorage.setItem("push-info", JSON.stringify(data))
+    } else {
+      setLoading(false);
+      setError({
+        name: "Subscription denied",
+        message: "Unable to create subscription",
+        code: 0
+      });
     }
-    localStorage.setItem("push-info", JSON.stringify(data))
   }
 
-  return (
-    <div>
-      <button onClick={initializeUI}>{textButton}</button>
-      {/* <p>{subsText}</p> */}
-    </div>
-  )
-}
+  const onClickSendSubscriptionToPushServer = async() => {
+    setLoading(true);
+    setError(false);
+    if(!userSubscription){
+      await createNotificationSubscription()
+      .then(function(subscrition) {
+        setUserSubscription(subscrition);
+        sendSubscribeUserToServer(subscrition)
+      })
+      .catch(err => {
+        // console.error("Couldn't create the notification subscription", err, "name:", err.name, "message:", err.message, "code:", err.code);
+        setError({
+          name: "Push subscription denied",
+          message: "Unable to create push subscription",
+          code: 0
+        });
+        setLoading(false);
+      });
+    } else {
+      sendSubscribeUserToServer(null)
+    }
+  };
 
-export default Subcription
+  const onClickUnsubscribeUser = async() => {    
+    setError(false);
+    setLoading(true)
+    const userId = JSON.parse(localStorage.getItem('push-info'))
+    const server = `${baseURL}/archivesubscription/${userId._id}`
+    const archiveSubscription = await axios.put(server)
+    if(archiveSubscription.statusText === 'OK') {
+      const check = await userSubscribe()
+      console.log('check', check)
+      if(check) {
+        setLoading(false);
+      }
+    } else {
+      setLoading(false);
+      setError({
+        name: "Subscription denied",
+        message: "Unable to end subscription",
+        code: 0
+      });
+    }
+  }
+
+  return {
+    onClickAskUserPermission,
+    onClickSusbribeToPushNotification,
+    onClickSendSubscriptionToPushServer,
+    onClickUnsubscribeUser,
+    pushNotificationSupported,
+    userSubscription,
+    userConsent,
+    error,
+    loading
+  };
+}
