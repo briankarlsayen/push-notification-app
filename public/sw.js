@@ -10,9 +10,7 @@ self.addEventListener('push', function(event) {
   const { title, body } = event.data.json();
 
   const options = {
-    body: body,
-    icon: 'yin-yang.png',
-    badge: 'yin-yang.png'
+    body: body
   };
 
   event.waitUntil(self.registration.showNotification(title, options));
