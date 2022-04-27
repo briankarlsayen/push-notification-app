@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import useSubscription from './Subcription'
+import useSubscription from './subscription'
 
 const Loading = ({ loading }) => (loading ? <div className="app-loader">Please wait, we are loading something...</div> : null);
 const Error = ({ error }) =>

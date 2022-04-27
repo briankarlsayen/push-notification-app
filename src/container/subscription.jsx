@@ -25,7 +25,7 @@ export default function Subcription() {
   }
 
   const registerSW = () => {
-    return navigator.serviceWorker.register('sw')
+    return navigator.serviceWorker.register('./sw.js')
   }
 
   const isPushNotifSupported = () => {
@@ -51,13 +51,10 @@ export default function Subcription() {
       return serviceWorker.pushManager.getSubscription()
        .then(function(subscription) {
         return subscription.unsubscribe().then(function(successful) {
-          // setLoading(true);
           localStorage.clear()
           setUserSubscription(null)
-          // setLoading(false);
           setError(false)
           return successful
-          // You've successfully unsubscribed
         }).catch(function(e) {
           setError({
             name: "Subscription error",
@@ -65,7 +62,6 @@ export default function Subcription() {
             code: 0
           });
           return false
-          // Unsubscribing failed
         })
       })
     })
@@ -99,7 +95,6 @@ export default function Subcription() {
         message: "Push messaging is not supported",
         code: 0
       });
-      // pushButton.textContent = 'Push Not Supported';
     }
   }, [])
 
