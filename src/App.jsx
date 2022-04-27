@@ -4,7 +4,7 @@ function App() {
   return (
     <div className="App">
       <p>Timer-app</p>
-      {/* <Subcription /> */}
+      <Subcription />
     </div>
   )
 }
